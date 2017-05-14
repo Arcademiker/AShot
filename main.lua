@@ -204,13 +204,15 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
     pos[4] = pre[4] --rep[4] is parent of pre
     graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
     pos[3] = pre[4][3]+d(pos,pre[4])
-    print("("..pos[1]..","..pos[2]..")","d: "..pos[3],"("..pos[4][1]..","..pos[4][2]..")")
+    --print("("..pos[1]..","..pos[2]..")","d: "..pos[3],"("..pos[4][1]..","..pos[4][2]..")")
     table.insert(rim,pos)
     return true
   end
-  new = pos
+  new = {pos[1],pos[2]}
+  --local ext = torch.Tensor(expansed)
   table.sort(expansed,comptonew)
   local count = 0
+  --binäre suche oder zumindest ein paar überspringen
   while #expansed>0 do
   --if ispathfree(pos,expansed[i],pathimg) then
     --pos[4] = expansed[i]
@@ -218,9 +220,43 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
     --how is this even possible?
     if ispathfree2(pos,expansed[1],pathimg,graph) then
       pos[4] = expansed[1]
-      graph[pos[1]][pos[2]] = pos[4]
+      graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
       pos[3] = expansed[1][3] + d(pos,expansed[1])
-      print("("..pos[1]..", "..pos[2]..") "," d: "..pos[3],"("..pos[4][1]..", "..pos[4][2]..") "," search: "..count)
+      print("("..pos[1]..", "..pos[2]..") "," d: "..pos[3],"("..pos[4][1]..", "..pos[4][2]..") "," search: "..count, "hot: ", #expansed, "rim: ", #rim, "total: " , (#expansed*#rim*pos[3]/1000000).." mio")
+      table.insert(rim,pos)
+      img[1][expansed[1][1]][expansed[1][2]] = 150
+      return true
+    end
+    table.remove(expansed,1)
+    count = count + 1
+  end
+  return false
+end
+
+local function findparent2NV(pos,pre,rim,expansed,pathimg,graph,img)
+  if ispathfree2(pos,pre[4],pathimg,graph) then
+    pos[4] = pre[4] --rep[4] is parent of pre
+    graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
+    pos[3] = pre[4][3]+d(pos,pre[4])
+    --print("("..pos[1]..","..pos[2]..")","d: "..pos[3],"("..pos[4][1]..","..pos[4][2]..")")
+    table.insert(rim,pos)
+    return true
+  end
+  new = {pos[1],pos[2]}
+  --local ext = torch.Tensor(expansed)
+  table.sort(expansed,comptonew)
+  local count = 0
+  --binäre suche oder zumindest ein paar überspringen
+  while #expansed>0 do
+  --if ispathfree(pos,expansed[i],pathimg) then
+    --pos[4] = expansed[i]
+    --pos[3] = expansed[i][3] + d(pos,expansed[i])
+    --how is this even possible?
+    if ispathfree2(pos,expansed[1],pathimg,graph) then
+      pos[4] = expansed[1]
+      graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
+      pos[3] = expansed[1][3] + d(pos,expansed[1])
+      --print("("..pos[1]..", "..pos[2]..") "," d: "..pos[3],"("..pos[4][1]..", "..pos[4][2]..") "," search: "..count, "hot: ", #expansed, "rim: ", #rim, "total: " , (#expansed*#rim*pos[3]/1000000).." mio")
       table.insert(rim,pos)
       img[1][expansed[1][1]][expansed[1][2]] = 150
       return true
@@ -242,12 +278,13 @@ local function astar2(max,pos,img,depthmap,graph,color)
   end
   local rim = {}
   local expansed = {}
+  table.insert(expansed,{pos[1],pos[2],pos[3]}) 
   table.insert(rim,pos)
   while(#rim>0 and pos[3] < max) do
 --  while(#rim>0) do
     table.sort(rim,comp)
     pos = table.remove(rim,1)
-    table.insert(expansed,pos)
+    table.insert(expansed,{pos[1],pos[2],pos[3]})
     
     if (math.ceil(pos[3])%100==0) then
       depthmap[1][pos[1]][pos[2]] = 0
@@ -255,7 +292,7 @@ local function astar2(max,pos,img,depthmap,graph,color)
       depthmap[1][pos[1]][pos[2]] = pos[3]
       color[1][pos[1]][pos[2]] = pos[4][1]%256+(256-(pos[4][1]%256+pos[4][2]%256))-pos[3]/max*256+256
       color[2][pos[1]][pos[2]] = pos[4][2]%256+(256-(pos[4][1]%256+pos[4][2]%256))-pos[3]/max*256+256
-      color[3][pos[1]][pos[2]] = pos[4][3]
+      color[3][pos[1]][pos[2]] = pos[4][3]-pos[3]/max*256+256
     end
     
     --depthmap[1][pos[1]][pos[2]] = pos[3]
@@ -271,7 +308,44 @@ end
 
 
 
-
+local function astar2NV(max,pos,img,depthmap,graph,color)
+  local pathimg = img:clone()
+  for y=1, pathimg:size(2) do
+    for x=1, pathimg:size(3) do
+      if pathimg[1][y][x] ~= 0 then
+        pathimg[1][y][x] = 200
+      end
+    end
+  end
+  local rim = {}
+  local expansed = {}
+  table.insert(expansed,{pos[1],pos[2],pos[3]}) 
+  table.insert(rim,pos)
+  while(#rim>0 and pos[3] < max) do
+--  while(#rim>0) do
+    table.sort(rim,comp)
+    pos = table.remove(rim,1)
+    table.insert(expansed,{pos[1],pos[2],pos[3]})
+    
+    if (math.ceil(pos[3])%100==0) then
+      depthmap[1][pos[1]][pos[2]] = 0
+    else
+      depthmap[1][pos[1]][pos[2]] = pos[3]
+      color[1][pos[1]][pos[2]] = pos[4][1]%256+(256-(pos[4][1]%256+pos[4][2]%256))-pos[3]/max*256+256
+      color[2][pos[1]][pos[2]] = pos[4][2]%256+(256-(pos[4][1]%256+pos[4][2]%256))-pos[3]/max*256+256
+      color[3][pos[1]][pos[2]] = pos[4][3]-pos[3]/max*256+256
+    end
+    
+    --depthmap[1][pos[1]][pos[2]] = pos[3]
+    if(pos[1]+1 < pathimg:size(2) and pathimg[1][pos[1]+1][pos[2]] == 0) then  findparent2NV({pos[1]+1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]+1][pos[2]] = 100        end
+    if(pos[2]+1 < pathimg:size(3) and pathimg[1][pos[1]][pos[2]+1] == 0) then  findparent2NV({pos[1],pos[2]+1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]+1] = 100        
+    elseif(pathimg[1][pos[1]][1] == 0 and pos[2]+1 > pathimg:size(3))     then  findparent2NV({pos[1],1},pos,rim,expansed,pathimg,graph,img)              ; pathimg[1][pos[1]][1] = 100               end
+    if(pos[1]-1 > 1           and pathimg[1][pos[1]-1][pos[2]] == 0)     then  findparent2NV({pos[1]-1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]-1][pos[2]] = 100        end
+    if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparent2NV({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        
+    elseif(pathimg[1][pos[1]][pathimg:size(3)] == 0 and pos[2]-1 < 1)     then  findparent2NV({pos[1],pathimg:size(3)},pos,rim,expansed,pathimg,graph,img); pathimg[1][pos[1]][pathimg:size(3)] = 100 end
+  end
+  return pathimg
+end
 
 
 
@@ -279,6 +353,33 @@ end
 
 
 local function main()
+  local cmd = torch.CmdLine()
+  cmd:text()
+  cmd:text('ashot calculates shortest distances like astar...')
+  cmd:text('Example:')
+  cmd:text('$> luajit -lenv main.lua --y 400 --x 300 --depth 300 --v 1')
+  cmd:text('Options:')
+  cmd:option('--x', 400, 'start position x value')
+  cmd:option('--y', 300, 'start position y value')
+  cmd:option('--depth', 300, 'depth of search')
+  cmd:option('--v', 1, '0 = do not show debug messages')
+
+
+  cmd:text()
+  opt = cmd:parse(arg or {})
+  if not opt.silent then
+    print(opt)
+  end
+
+  opt.x =tonumber(opt.x)
+  opt.y = tonumber(opt.y)
+  opt.depth = tonumber(opt.depth)
+  opt.v = tonumber(opt.v)
+
+
+  
+
+
   local img = image.load("allies342.png",1,'byte')
   local color = torch.Tensor(3,img:size(2),img:size(3)):zero()
   local depthmap = torch.Tensor(1,img:size(2),img:size(3)):zero()
@@ -291,13 +392,81 @@ local function main()
     table.insert(graph,row)
   end
   print("img size: ",img:size(2),img:size(3))
-  local pos = {280,350,0}
+  local pos = {opt.y,opt.x,0}
   pos[4] = pos
+  img[1][pos[1]][pos[2]] = 230
   local tmp = img:clone()
-  image.display(astar2(500,pos,tmp,depthmap,graph,color))
-  image.display(tmp)
-  image.display(color)
-  image.display(depthmap)
+  local pathimg = img:clone()
+  if opt.v==0 then
+    print("start: ",pos[1],pos[2])
+    pathimg = astar2NV(opt.depth,pos,tmp,depthmap,graph,color)
+  else
+    print("start verbose: ",pos[1],pos[2])
+    pathimg = astar2(opt.depth,pos,tmp,depthmap,graph,color)
+  end
+  --image.display(tmp)
+  --image.display(color)
+  --image.display(depthmap)
+  --print("convert pathimg...")
+  local max = 1
+  --for y=1, pathimg:size(2) do
+  --  for x=1, pathimg:size(3) do
+  --    max = max < pathimg[1][y][x] and pathimg[1][y][x] or max
+  --  end
+  --end
+  --for y=1, pathimg:size(2) do
+  --  for x=1, pathimg:size(3) do
+  --    pathimg[1][y][x] = pathimg[1][y][x]/max
+  --  end
+  --end
+  --max = 1
+  --print("convert img...")
+  --for y=1, tmp:size(2) do
+  --  for x=1, tmp:size(3) do
+  --    max = max < tmp[1][y][x] and tmp[1][y][x] or max
+  --  end
+  --end
+  --for y=1, tmp:size(2) do
+  --  for x=1, tmp:size(3) do
+  --    tmp[1][y][x] = tmp[1][y][x]/max
+  --  end
+  --end
+  --max = 1
+  print("convert ashot...")
+  local max1 = 1
+  local max2 = 1
+  local max3 = 1
+  for y=1, color:size(2) do
+    for x=1, color:size(3) do
+      max1 = max1 < color[1][y][x] and color[1][y][x] or max1
+      max2 = max2 < color[2][y][x] and color[2][y][x] or max2
+      max3 = max3 < color[3][y][x] and color[3][y][x] or max3
+    end
+  end
+  for y=1, color:size(2) do
+    for x=1, color:size(3) do
+      color[1][y][x] = color[1][y][x]/max1
+      color[2][y][x] = color[2][y][x]/max2
+      color[3][y][x] = color[3][y][x]/max3
+    end
+  end
+  print("convert depthmap...")
+  for y=1, depthmap:size(2) do
+    for x=1, depthmap:size(3) do
+      max = max < depthmap[1][y][x] and depthmap[1][y][x] or max
+    end
+  end
+  for y=1, depthmap:size(2) do
+    for x=1, depthmap:size(3) do
+      depthmap[1][y][x] = depthmap[1][y][x]/max
+    end
+  end
+  max = 1
+  
+  image.save("pathimg.png", pathimg)
+  image.save("img.png", tmp)
+  image.save("ashot.png", color)
+  image.save("depthmap.png", depthmap)
 end
 
 
