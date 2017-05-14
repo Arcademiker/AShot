@@ -394,7 +394,7 @@ local function main()
   print("img size: ",img:size(2),img:size(3))
   local pos = {opt.y,opt.x,0}
   pos[4] = pos
-  img[1][pos[1]][pos[2]] = 230
+  img[1][pos[1]][pos[2]] = 0
   local tmp = img:clone()
   local pathimg = img:clone()
   if opt.v==0 then
