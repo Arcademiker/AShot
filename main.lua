@@ -12,6 +12,8 @@ togo = 0
 pasttimeT = {}
 nrimT = {}
 down = 0
+growrateT = {} 
+flatmediumspeed = {}
 --this is not call by value
 --local function breitensuche(pos,img,depthmap)
 --  local rim = {}
@@ -341,11 +343,9 @@ local function astar2(max,pos,img,depthmap,graph,color)
     
     --depthmap[1][pos[1]][pos[2]] = pos[3]
     if(pos[1]+1 < pathimg:size(2) and pathimg[1][pos[1]+1][pos[2]] == 0) then  findparent2({pos[1]+1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]+1][pos[2]] = 100        end
-    if(pos[2]+1 < pathimg:size(3) and pathimg[1][pos[1]][pos[2]+1] == 0) then  findparent2({pos[1],pos[2]+1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]+1] = 100        
-    elseif(pathimg[1][pos[1]][1] == 0 and pos[2]+1 > pathimg:size(3))     then  findparent2({pos[1],1},pos,rim,expansed,pathimg,graph,img)              ; pathimg[1][pos[1]][1] = 100               end
+    if(pos[2]+1 < pathimg:size(3) and pathimg[1][pos[1]][pos[2]+1] == 0) then  findparent2({pos[1],pos[2]+1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]+1] = 100        end
     if(pos[1]-1 > 1           and pathimg[1][pos[1]-1][pos[2]] == 0)     then  findparent2({pos[1]-1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]-1][pos[2]] = 100        end
-    if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparent2({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        
-    elseif(pathimg[1][pos[1]][pathimg:size(3)] == 0 and pos[2]-1 < 1)     then  findparent2({pos[1],pathimg:size(3)},pos,rim,expansed,pathimg,graph,img); pathimg[1][pos[1]][pathimg:size(3)] = 100 end
+    if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparent2({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        end
     --umbruch richtig versuchen!
   end
   return pathimg
@@ -417,6 +417,13 @@ local function findparent(pos,pre,rim,expansed,pathimg,graph,img)
   local toelapse = 0
   local flattime = 0
   local flatrim = 0
+  local growrate = 0
+  local speedlost = 0
+  local prozent = 0
+  local mediumspeed = 0
+  local rimhalve = 0
+  local timehalve = 0
+  local dspeed = 0
   --binäre suche oder zumindest ein paar überspringen
   while #expansed>0 do
   --if ispathfree(pos,expansed[i],pathimg) then
@@ -427,21 +434,45 @@ local function findparent(pos,pre,rim,expansed,pathimg,graph,img)
       pos[4] = expansed[1]
       graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
       pos[3] = expansed[1][3] + d(pos,expansed[1])
-      toelapse = (0.5)*(#rim/opt.depth)*((opt.depth-pos[3])*(opt.depth-pos[3]))+(#rim*(opt.depth-pos[3]))
+      --evaluation start
+      growrate = #rim
+      table.insert(growrateT,growrate)
+      for i=1, #growrateT do
+        growrate = growrate + growrateT[i]
+      end
+      growrate = growrate / #growrateT
+      toelapse = (0.5)*(growrate/opt.depth)*((opt.depth-pos[3])*(opt.depth-pos[3]))+(growrate*(opt.depth-pos[3]))
       pasttime = (os.clock()-running)
       nrim = (rimcount-lastrim)
       table.insert(pasttimeT,pasttime)
       table.insert(nrimT,nrim)
       for i=1, #pasttimeT do
+        if(i < #pasttimeT/2) then
+          timehalve = timehalve + pasttimeT[i]
+        end
         flattime = flattime + pasttimeT[i]
       end
-      flattime = flattime/#pasttimeT
+      flattime = flattime / #pasttimeT
       for i=1, #nrimT do
+        if(i < #pasttimeT/2) then
+          rimhalve = rimhalve + nrimT[i]
+        end
         flatrim = flatrim + nrimT[i]
       end
-      flatrim = flatrim/#nrimT
+      flatrim = flatrim / #nrimT
       
-      if((toelapse*((flattime)/(flatrim)))<togo) then
+      speedlost = ((flatrim/flattime)-(rimhalve/timehalve))/(#nrimT/2)
+      prozent = opt.depth/pos[3]
+      mediumspeed = ((flatrim/flattime)+speedlost*(#nrimT*prozent)*((1-pos[3]/opt.depth)/2))
+      table.insert(flatmediumspeed,mediumspeed)
+      for i=3, #flatmediumspeed do
+        dspeed = dspeed + flatmediumspeed[i]
+      end
+      dspeed = dspeed / #flatmediumspeed
+      
+      
+      --print(flatrim/flattime,dspeed,1/dspeed,mediumspeed)
+      if(toelapse*(1/dspeed)<togo) then
         down = down + 1
       else
         if down < 1 then
@@ -450,8 +481,8 @@ local function findparent(pos,pre,rim,expansed,pathimg,graph,img)
           down = down - 1  
         end
       end
-      if(down > 20) then
-        print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: "..#expansed, "pre hops: "..#child, "rim: "..#rim, "past time: "..(math.ceil(os.clock()*10000)/10000), "remaining time: ~"..(math.ceil(10*(toelapse*((flattime)/(flatrim))))/10).."s")
+      if(down > 15) then
+        print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: "..#expansed, "pre hops: "..#child, "rim: "..#rim, "past time: "..(math.ceil(os.clock()*10000)/10000), "remaining time: ~"..(math.ceil(730*(toelapse*(1/dspeed)))/100).."s", "end: "..(math.ceil((os.clock()+7.3*toelapse*(1/dspeed))*10)/10))
       else
         print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: "..#expansed, "pre hops: "..#child, "rim: "..#rim, "past time: "..(math.ceil(os.clock()*10000)/10000), "speed: "..math.ceil((flatrim/flattime)), "toelapse: ~"..math.ceil(toelapse))
       end
@@ -460,6 +491,7 @@ local function findparent(pos,pre,rim,expansed,pathimg,graph,img)
       lastrim = rimcount
       running = os.clock()
       table.insert(rim,pos)
+      --evaluation end
       img[1][expansed[1][1]][expansed[1][2]] = 150
       return true
     end
@@ -538,9 +570,9 @@ local function astar(max,pos,img,depthmap,graph,color)
       depthmap[1][pos[1]][pos[2]] = 0
     else
       depthmap[1][pos[1]][pos[2]] = pos[3]
-      color[1][pos[1]][pos[2]] = pos[4][1]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
-      color[2][pos[1]][pos[2]] = pos[4][2]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
-      color[3][pos[1]][pos[2]] = math.abs(pos[4][2]%77-pos[4][1]%77)*2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      color[1][pos[1]][pos[2]] = pos[4][1]%150+(150-(pos[4][1]%150+pos[4][2]%150+math.abs(pos[4][2]%150-pos[4][1]%150)))/3 +(pos[4][3]/max*100)-(pos[3]/max*100)
+      color[2][pos[1]][pos[2]] = pos[4][2]%150+(150-(pos[4][1]%150+pos[4][2]%150+math.abs(pos[4][2]%150-pos[4][1]%150)))/3 +(pos[4][3]/max*100)-(pos[3]/max*100)
+      color[3][pos[1]][pos[2]] = math.abs(pos[4][2]%150-pos[4][1]%150)+(150-(pos[4][1]%150+pos[4][2]%150+math.abs(pos[4][2]%150-pos[4][1]%150)))/3 +(pos[4][3]/max*100)-(pos[3]/max*100)
     end
     
     --depthmap[1][pos[1]][pos[2]] = pos[3]
@@ -778,7 +810,13 @@ end
 
 
 
-
+--   if(pos[1]+1 < pathimg:size(2) and pathimg[1][pos[1]+1][pos[2]] == 0) then  findparent2({pos[1]+1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]+1][pos[2]] = 100        end
+--    if(pos[2]+1 < pathimg:size(3) and pathimg[1][pos[1]][pos[2]+1] == 0) then  findparent2({pos[1],pos[2]+1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]+1] = 100        
+--    elseif(pathimg[1][pos[1]][1] == 0 and pos[2]+1 > pathimg:size(3))     then  findparent2({pos[1],1},pos,rim,expansed,pathimg,graph,img)              ; pathimg[1][pos[1]][1] = 100               end
+--    if(pos[1]-1 > 1           and pathimg[1][pos[1]-1][pos[2]] == 0)     then  findparent2({pos[1]-1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]-1][pos[2]] = 100        end
+--    if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparent2({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        
+--    elseif(pathimg[1][pos[1]][pathimg:size(3)] == 0 and pos[2]-1 < 1)     then  findparent2({pos[1],pathimg:size(3)},pos,rim,expansed,pathimg,graph,img); pathimg[1][pos[1]][pathimg:size(3)] = 100 end
+    --umbruch richtig versuchen!
 
 
 
