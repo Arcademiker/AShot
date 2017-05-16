@@ -6,6 +6,12 @@ new = {0,0}
 running = 0
 rimcount = 1
 lastrim = 0
+pasttime = 1
+nrim = 1
+togo = 0
+pasttimeT = {}
+nrimT = {}
+down = 0
 --this is not call by value
 --local function breitensuche(pos,img,depthmap)
 --  local rim = {}
@@ -217,6 +223,8 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
   table.sort(expansed,comptonew)
   local count = 0
   local toelapse = 0
+  local flattime = 0
+  local flatrim = 0
   --binäre suche oder zumindest ein paar überspringen
   while #expansed>0 do
   --if ispathfree(pos,expansed[i],pathimg) then
@@ -228,7 +236,34 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
       graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
       pos[3] = expansed[1][3] + d(pos,expansed[1])
       toelapse = (0.5)*(#rim/opt.depth)*((opt.depth-pos[3])*(opt.depth-pos[3]))+(#rim*(opt.depth-pos[3]))
-      print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: ", #expansed, "rim: ", #rim, "past time: "..os.clock, "remaining time: ~"..(toelapse*((os.clock()-running)/(rimcount-lastrim))).."s")
+      pasttime = (os.clock()-running)
+      nrim = (rimcount-lastrim)
+      table.insert(pasttimeT,pasttime)
+      table.insert(nrimT,nrim)
+      for i=1, #pasttimeT do
+        flattime = flattime + pasttimeT[i]
+      end
+      flattime = flattime/#pasttimeT
+      for i=1, #nrimT do
+        flatrim = flatrim + nrimT[i]
+      end
+      flatrim = flatrim/#nrimT
+          if((toelapse*((flattime)/(flatrim)))<togo) then
+      down = down + 1
+      else
+        if down < 1 then
+          down = 0
+        else
+          down = down - 1  
+        end
+      end
+      if(down > 20) then
+        print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: "..#expansed, "rim: "..#rim, "past time: "..(math.ceil(os.clock()*10000)/10000), "remaining time: ~"..(math.ceil(10*(toelapse*((flattime)/(flatrim))))/10).."s")
+      else
+        print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: "..#expansed, "rim: "..#rim, "past time: "..(math.ceil(os.clock()*10000)/10000), "speed: "..math.ceil((flatrim/flattime)), "toelapse: ~"..math.ceil(toelapse))
+      end
+      
+      togo = (toelapse*((flattime)/(flatrim)))
       lastrim = rimcount
       running = os.clock()
       table.insert(rim,pos)
@@ -380,6 +415,8 @@ local function findparent(pos,pre,rim,expansed,pathimg,graph,img)
   table.sort(expansed,comptonew)
   local count = 0
   local toelapse = 0
+  local flattime = 0
+  local flatrim = 0
   --binäre suche oder zumindest ein paar überspringen
   while #expansed>0 do
   --if ispathfree(pos,expansed[i],pathimg) then
@@ -391,7 +428,35 @@ local function findparent(pos,pre,rim,expansed,pathimg,graph,img)
       graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
       pos[3] = expansed[1][3] + d(pos,expansed[1])
       toelapse = (0.5)*(#rim/opt.depth)*((opt.depth-pos[3])*(opt.depth-pos[3]))+(#rim*(opt.depth-pos[3]))
-      print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: ", #expansed, "rim: ", #rim, "pre hops: "..#child, "past time: "..os.clock, "remaining time: ~"..(toelapse*((os.clock()-running)/(rimcount-lastrim))).."s")
+      pasttime = (os.clock()-running)
+      nrim = (rimcount-lastrim)
+      table.insert(pasttimeT,pasttime)
+      table.insert(nrimT,nrim)
+      for i=1, #pasttimeT do
+        flattime = flattime + pasttimeT[i]
+      end
+      flattime = flattime/#pasttimeT
+      for i=1, #nrimT do
+        flatrim = flatrim + nrimT[i]
+      end
+      flatrim = flatrim/#nrimT
+      
+      if((toelapse*((flattime)/(flatrim)))<togo) then
+        down = down + 1
+      else
+        if down < 1 then
+          down = 0
+        else
+          down = down - 1  
+        end
+      end
+      if(down > 20) then
+        print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: "..#expansed, "pre hops: "..#child, "rim: "..#rim, "past time: "..(math.ceil(os.clock()*10000)/10000), "remaining time: ~"..(math.ceil(10*(toelapse*((flattime)/(flatrim))))/10).."s")
+      else
+        print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: "..#expansed, "pre hops: "..#child, "rim: "..#rim, "past time: "..(math.ceil(os.clock()*10000)/10000), "speed: "..math.ceil((flatrim/flattime)), "toelapse: ~"..math.ceil(toelapse))
+      end
+      
+      togo = (toelapse*((flattime)/(flatrim)))
       lastrim = rimcount
       running = os.clock()
       table.insert(rim,pos)
