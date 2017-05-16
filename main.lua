@@ -3,7 +3,9 @@ local image = require 'image'
 
 target = {400,100}
 new = {0,0}
-
+running = 0
+rimcount = 1
+lastrim = 0
 --this is not call by value
 --local function breitensuche(pos,img,depthmap)
 --  local rim = {}
@@ -134,10 +136,11 @@ end
 --  return true
 --end
 
+--ein pixel in bekante zone reinrennen!!!
 local function ispathfree2(pos1,parent,pathimg,graph)
   local line = getline(pos1,parent)
   for i=1, #line do
-    if pathimg[1][line[i][1]][line[i][2]] ~= 100 and graph[line[i][1]][line[i][2]][1] == parent[1] and graph[line[i][1]][line[i][2]][2] == parent[2] then
+    if i>7 and pathimg[1][line[i][1]][line[i][2]] ~= 100 and graph[line[i][1]][line[i][2]][1] == parent[1] and graph[line[i][1]][line[i][2]][2] == parent[2] then
       return true
     elseif pathimg[1][line[i][1]][line[i][2]] == 200 then
       return false
@@ -206,6 +209,7 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
     pos[3] = pre[4][3]+d(pos,pre[4])
     --print("("..pos[1]..","..pos[2]..")","d: "..pos[3],"("..pos[4][1]..","..pos[4][2]..")")
     table.insert(rim,pos)
+    rimcount = rimcount + 1
     return true
   end
   new = {pos[1],pos[2]}
@@ -222,9 +226,11 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
       pos[4] = expansed[1]
       graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
       pos[3] = expansed[1][3] + d(pos,expansed[1])
-      print("("..pos[1]..", "..pos[2]..") "," d: "..pos[3],"("..pos[4][1]..", "..pos[4][2]..") "," search: "..count, "hot: ", #expansed, "rim: ", #rim, "total: " , (math.ceil(((#expansed/1000)*#rim*(pos[3]/10))/1000)).." k")
+      print("("..pos[1]..", "..pos[2]..") "," d: "..pos[3],"of "..opt.depth,"("..pos[4][1]..", "..pos[4][2]..") "," search: "..count, "hot: ", #expansed, "rim: ", #rim, "speed: "..math.ceil((((rimcount-lastrim)/#rim)/(os.clock()-running))*1000))
+      lastrim = rimcount
+      running = os.clock()
       table.insert(rim,pos)
-      img[1][expansed[1][1]][expansed[1][2]] = 150
+      --img[1][expansed[1][1]][expansed[1][2]] = 150
       return true
     end
     table.remove(expansed,1)
@@ -232,6 +238,7 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
   end
   return false
 end
+
 
 local function findparent2NV(pos,pre,rim,expansed,pathimg,graph,img)
   if ispathfree2(pos,pre[4],pathimg,graph) then
@@ -258,7 +265,7 @@ local function findparent2NV(pos,pre,rim,expansed,pathimg,graph,img)
       pos[3] = expansed[1][3] + d(pos,expansed[1])
       --print("("..pos[1]..", "..pos[2]..") "," d: "..pos[3],"("..pos[4][1]..", "..pos[4][2]..") "," search: "..count, "hot: ", #expansed, "rim: ", #rim, "total: " , (#expansed*#rim*pos[3]/1000000).." mio")
       table.insert(rim,pos)
-      img[1][expansed[1][1]][expansed[1][2]] = 150
+      --img[1][expansed[1][1]][expansed[1][2]] = 150
       return true
     end
     table.remove(expansed,1)
@@ -284,15 +291,15 @@ local function astar2(max,pos,img,depthmap,graph,color)
 --  while(#rim>0) do
     table.sort(rim,comp)
     pos = table.remove(rim,1)
-    table.insert(expansed,{pos[1],pos[2],pos[3]})
+    table.insert(expansed,{pos[1],pos[2],pos[3]}) 
     
     if (math.ceil(pos[3])%100==0) then
       depthmap[1][pos[1]][pos[2]] = 0
     else
       depthmap[1][pos[1]][pos[2]] = pos[3]
-      color[1][pos[1]][pos[2]] = pos[4][1]%256+(256-(pos[4][1]%256+pos[4][2]%256))-pos[3]/max*256+256
-      color[2][pos[1]][pos[2]] = pos[4][2]%256+(256-(pos[4][1]%256+pos[4][2]%256))-pos[3]/max*256+256
-      color[3][pos[1]][pos[2]] = pos[4][3]-pos[3]/max*256+256
+      --color[1][pos[1]][pos[2]] = pos[4][1]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      --color[2][pos[1]][pos[2]] = pos[4][2]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      --color[3][pos[1]][pos[2]] = math.abs(pos[4][2]%150-pos[4][1]%150)+(pos[4][3]/max*100)-(pos[3]/max*100)
     end
     
     --depthmap[1][pos[1]][pos[2]] = pos[3]
@@ -302,6 +309,7 @@ local function astar2(max,pos,img,depthmap,graph,color)
     if(pos[1]-1 > 1           and pathimg[1][pos[1]-1][pos[2]] == 0)     then  findparent2({pos[1]-1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]-1][pos[2]] = 100        end
     if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparent2({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        
     elseif(pathimg[1][pos[1]][pathimg:size(3)] == 0 and pos[2]-1 < 1)     then  findparent2({pos[1],pathimg:size(3)},pos,rim,expansed,pathimg,graph,img); pathimg[1][pos[1]][pathimg:size(3)] = 100 end
+    --umbruch richtig versuchen!
   end
   return pathimg
 end
@@ -331,23 +339,191 @@ local function astar2NV(max,pos,img,depthmap,graph,color)
       depthmap[1][pos[1]][pos[2]] = 0
     else
       depthmap[1][pos[1]][pos[2]] = pos[3]
-      color[1][pos[1]][pos[2]] = pos[4][1]%256+(256-(pos[4][1]%256+pos[4][2]%256))-pos[3]/max*256+256
-      color[2][pos[1]][pos[2]] = pos[4][2]%256+(256-(pos[4][1]%256+pos[4][2]%256))-pos[3]/max*256+256
-      color[3][pos[1]][pos[2]] = pos[4][3]-pos[3]/max*256+256
+      --color[1][pos[1]][pos[2]] = pos[4][1]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      --color[2][pos[1]][pos[2]] = pos[4][2]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      --color[3][pos[1]][pos[2]] = math.abs(pos[4][2]%150-pos[4][1]%150)+(pos[4][3]/max*100)-(pos[3]/max*100)
     end
     
     --depthmap[1][pos[1]][pos[2]] = pos[3]
     if(pos[1]+1 < pathimg:size(2) and pathimg[1][pos[1]+1][pos[2]] == 0) then  findparent2NV({pos[1]+1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]+1][pos[2]] = 100        end
-    if(pos[2]+1 < pathimg:size(3) and pathimg[1][pos[1]][pos[2]+1] == 0) then  findparent2NV({pos[1],pos[2]+1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]+1] = 100        
-    elseif(pathimg[1][pos[1]][1] == 0 and pos[2]+1 > pathimg:size(3))     then  findparent2NV({pos[1],1},pos,rim,expansed,pathimg,graph,img)              ; pathimg[1][pos[1]][1] = 100               end
+    if(pos[2]+1 < pathimg:size(3) and pathimg[1][pos[1]][pos[2]+1] == 0) then  findparent2NV({pos[1],pos[2]+1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]+1] = 100        end
     if(pos[1]-1 > 1           and pathimg[1][pos[1]-1][pos[2]] == 0)     then  findparent2NV({pos[1]-1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]-1][pos[2]] = 100        end
-    if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparent2NV({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        
-    elseif(pathimg[1][pos[1]][pathimg:size(3)] == 0 and pos[2]-1 < 1)     then  findparent2NV({pos[1],pathimg:size(3)},pos,rim,expansed,pathimg,graph,img); pathimg[1][pos[1]][pathimg:size(3)] = 100 end
+    if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparent2NV({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        end
+    --polare verzerrung vorher berechnen und startpunkt in bildmitte setzen!
+  end
+  return pathimg
+end
+
+local function findparent(pos,pre,rim,expansed,pathimg,graph,img)
+  local parent = pre[4]
+  local child = {}
+  table.insert(child,1,parent)
+  while parent[4][1] ~= parent[1] or parent[4][2] ~= parent[2] do
+    table.insert(child,1,parent[4])
+    parent = parent[4]
+  end
+  for i = 1, #child do
+    if ispathfree2(pos,child[i],pathimg,graph) then
+      pos[4] = child[i] --rep[4] is parent of pre
+      graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
+      pos[3] = child[i][3]+d(pos,child[i])
+      --print("("..pos[1]..","..pos[2]..")","d: "..pos[3],"("..pos[4][1]..","..pos[4][2]..")")
+      table.insert(rim,pos)
+      rimcount = rimcount + 1
+      return true
+    end
+  end
+  new = {pos[1],pos[2]}
+  --local ext = torch.Tensor(expansed)
+  table.sort(expansed,comptonew)
+  local count = 0
+  local toelapse = 0
+  --binäre suche oder zumindest ein paar überspringen
+  while #expansed>0 do
+  --if ispathfree(pos,expansed[i],pathimg) then
+    --pos[4] = expansed[i]
+    --pos[3] = expansed[i][3] + d(pos,expansed[i])
+    --how is this even possible?
+    if ispathfree2(pos,expansed[1],pathimg,graph) then
+      pos[4] = expansed[1]
+      graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
+      pos[3] = expansed[1][3] + d(pos,expansed[1])
+      toelapse = (0.5)*(#rim/opt.depth)*((opt.depth-pos[3])*(opt.depth-pos[3]))+(#rim*(opt.depth-pos[3]))
+      print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: ", #expansed, "rim: ", #rim, "pre hops: "..#child, "past time: "..os.clock, "remaining time: ~"..(toelapse*((os.clock()-running)/(rimcount-lastrim))).."s")
+      lastrim = rimcount
+      running = os.clock()
+      table.insert(rim,pos)
+      img[1][expansed[1][1]][expansed[1][2]] = 150
+      return true
+    end
+    table.remove(expansed,1)
+    count = count + 1
+  end
+  return false
+end
+
+local function findparentNV(pos,pre,rim,expansed,pathimg,graph,img)
+  local parent = pre[4]
+  local child = {}
+  table.insert(child,1,parent)
+  while parent[4][1] ~= parent[1] or parent[4][2] ~= parent[2] do
+    table.insert(child,1,parent[4])
+    parent = parent[4]
+  end
+  for i = 1, #child do
+    if ispathfree2(pos,child[i],pathimg,graph) then
+      pos[4] = child[i] --rep[4] is parent of pre
+      graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
+      pos[3] = child[i][3]+d(pos,child[i])
+      --print("("..pos[1]..","..pos[2]..")","d: "..pos[3],"("..pos[4][1]..","..pos[4][2]..")")
+      table.insert(rim,pos)
+      rimcount = rimcount + 1
+      return true
+    end
+  end
+  new = {pos[1],pos[2]}
+  --local ext = torch.Tensor(expansed)
+  table.sort(expansed,comptonew)
+  local count = 0
+  --binäre suche oder zumindest ein paar überspringen
+  while #expansed>0 do
+  --if ispathfree(pos,expansed[i],pathimg) then
+    --pos[4] = expansed[i]
+    --pos[3] = expansed[i][3] + d(pos,expansed[i])
+    --how is this even possible?
+    if ispathfree2(pos,expansed[1],pathimg,graph) then
+      pos[4] = expansed[1]
+      graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
+      pos[3] = expansed[1][3] + d(pos,expansed[1])
+      --print("("..pos[1]..", "..pos[2]..") "," d: "..pos[3],"of "..opt.depth,"("..pos[4][1]..", "..pos[4][2]..") "," search: "..count, "hot: ", #expansed, "rim: ", #rim, "pre hops: "..#child, "speed: "..math.ceil((((rimcount-lastrim)/#rim)/(os.clock()-running))*1000))
+      --lastrim = rimcount
+      --running = os.clock()
+      table.insert(rim,pos)
+      --img[1][expansed[1][1]][expansed[1][2]] = 150
+      return true
+    end
+    table.remove(expansed,1)
+    count = count + 1
+  end
+  return false
+end
+
+local function astar(max,pos,img,depthmap,graph,color)
+  local pathimg = img:clone()
+  for y=1, pathimg:size(2) do
+    for x=1, pathimg:size(3) do
+      if pathimg[1][y][x] ~= 0 then
+        pathimg[1][y][x] = 200
+      end
+    end
+  end
+  local rim = {}
+  local expansed = {}
+  table.insert(expansed,pos) 
+  table.insert(rim,pos)
+  while(#rim>0 and pos[3] < max) do
+--  while(#rim>0) do
+    table.sort(rim,comp)
+    pos = table.remove(rim,1)
+    table.insert(expansed,pos)
+    
+    if (math.ceil(pos[3])%100==0) then
+      depthmap[1][pos[1]][pos[2]] = 0
+    else
+      depthmap[1][pos[1]][pos[2]] = pos[3]
+      color[1][pos[1]][pos[2]] = pos[4][1]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      color[2][pos[1]][pos[2]] = pos[4][2]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      color[3][pos[1]][pos[2]] = math.abs(pos[4][2]%150-pos[4][1]%150)+(pos[4][3]/max*100)-(pos[3]/max*100)
+    end
+    
+    --depthmap[1][pos[1]][pos[2]] = pos[3]
+    if(pos[1]+1 < pathimg:size(2) and pathimg[1][pos[1]+1][pos[2]] == 0) then  findparent({pos[1]+1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]+1][pos[2]] = 100        end
+    if(pos[2]+1 < pathimg:size(3) and pathimg[1][pos[1]][pos[2]+1] == 0) then  findparent({pos[1],pos[2]+1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]+1] = 100        end
+    if(pos[1]-1 > 1           and pathimg[1][pos[1]-1][pos[2]] == 0)     then  findparent({pos[1]-1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]-1][pos[2]] = 100        end
+    if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparent({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        end
   end
   return pathimg
 end
 
 
+--final preferierter modus
+local function astarNV(max,pos,img,depthmap,graph,color)
+  local pathimg = img:clone()
+  for y=1, pathimg:size(2) do
+    for x=1, pathimg:size(3) do
+      if pathimg[1][y][x] ~= 0 then
+        pathimg[1][y][x] = 200
+      end
+    end
+  end
+  local rim = {}
+  local expansed = {}
+  table.insert(expansed,pos) 
+  table.insert(rim,pos)
+  while(#rim>0 and pos[3] < max) do
+--  while(#rim>0) do
+    table.sort(rim,comp)
+    pos = table.remove(rim,1)
+    table.insert(expansed,pos) 
+    
+    if (math.ceil(pos[3])%100==0) then
+      depthmap[1][pos[1]][pos[2]] = 0
+    else
+      depthmap[1][pos[1]][pos[2]] = pos[3]
+      --color[1][pos[1]][pos[2]] = pos[4][1]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      --color[2][pos[1]][pos[2]] = pos[4][2]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
+      --color[3][pos[1]][pos[2]] = math.abs(pos[4][2]%150-pos[4][1]%150)+(pos[4][3]/max*100)-(pos[3]/max*100)
+    end
+    
+    --depthmap[1][pos[1]][pos[2]] = pos[3]
+    if(pos[1]+1 < pathimg:size(2) and pathimg[1][pos[1]+1][pos[2]] == 0) then  findparentNV({pos[1]+1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]+1][pos[2]] = 100        end
+    if(pos[2]+1 < pathimg:size(3) and pathimg[1][pos[1]][pos[2]+1] == 0) then  findparentNV({pos[1],pos[2]+1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]+1] = 100        end
+    if(pos[1]-1 > 1           and pathimg[1][pos[1]-1][pos[2]] == 0)     then  findparentNV({pos[1]-1,pos[2]},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]-1][pos[2]] = 100        end
+    if(pos[2]-1 > 1           and pathimg[1][pos[1]][pos[2]-1] == 0)     then  findparentNV({pos[1],pos[2]-1},pos,rim,expansed,pathimg,graph,img)       ; pathimg[1][pos[1]][pos[2]-1] = 100        end
+    
+  end
+  return pathimg
+end
 
 
 
@@ -357,12 +533,13 @@ local function main()
   cmd:text()
   cmd:text('ashot calculates shortest distances like astar...')
   cmd:text('Example:')
-  cmd:text('$> luajit -lenv main.lua --y 400 --x 300 --depth 300 --v 1')
+  cmd:text('$> luajit -lenv main.lua --y 400 --x 600 --depth 300 --v 1')
   cmd:text('Options:')
   cmd:option('--x', 400, 'start position x value')
-  cmd:option('--y', 300, 'start position y value')
+  cmd:option('--y', 600, 'start position y value')
   cmd:option('--depth', 300, 'depth of search')
-  cmd:option('--v', 1, '0 = do not show debug messages')
+  cmd:option('--v', 1, '0 = do not show debug messages and no aShotmap')
+  cmd:option('--a', 1, '0 = fast up some things (increase some small errors)')
 
 
   cmd:text()
@@ -375,6 +552,7 @@ local function main()
   opt.y = tonumber(opt.y)
   opt.depth = tonumber(opt.depth)
   opt.v = tonumber(opt.v)
+  opt.a = tonumber(opt.a)
 
 
   
@@ -397,13 +575,25 @@ local function main()
   img[1][pos[1]][pos[2]] = 0
   local tmp = img:clone()
   local pathimg = img:clone()
-  if opt.v==0 then
-    print("verbose == false")
-    print(os.date("%X", os.time()))
-    pathimg = astar2NV(opt.depth,pos,tmp,depthmap,graph,color)
+  if opt.a==0 then
+    print("accurate == false")
+    if opt.v==0 then
+      print("verbose == false")
+      print(os.date("%X", os.time()))
+      pathimg = astar2NV(opt.depth,pos,tmp,depthmap,graph,color)
+    else
+      print(os.date("%X", os.time()))
+      pathimg = astar2(opt.depth,pos,tmp,depthmap,graph,color)
+    end
   else
-    print(os.date("%X", os.time()))
-    pathimg = astar2(opt.depth,pos,tmp,depthmap,graph,color)
+     if opt.v==0 then
+      print("verbose == false")
+      print(os.date("%X", os.time()))
+      pathimg = astarNV(opt.depth,pos,tmp,depthmap,graph,color)
+    else
+      print(os.date("%X", os.time()))
+      pathimg = astar(opt.depth,pos,tmp,depthmap,graph,color)
+    end
   end
   --image.display(tmp)
   --image.display(color)
@@ -435,6 +625,7 @@ local function main()
   --max = 1
   print("done")
   print(os.date("%X", os.time()))
+  print(os.clock())
   
   print("convert ashot...")
   local max1 = 1
@@ -466,7 +657,7 @@ local function main()
     end
   end
   max = 1
-  
+  print("fast expansed nodes: ", rimcount)
   image.save("pathimg.png", pathimg)
   image.save("img.png", tmp)
   image.save("ashot.png", color)
