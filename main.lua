@@ -216,6 +216,7 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
   --local ext = torch.Tensor(expansed)
   table.sort(expansed,comptonew)
   local count = 0
+  local toelapse = 0
   --binäre suche oder zumindest ein paar überspringen
   while #expansed>0 do
   --if ispathfree(pos,expansed[i],pathimg) then
@@ -226,7 +227,8 @@ local function findparent2(pos,pre,rim,expansed,pathimg,graph,img)
       pos[4] = expansed[1]
       graph[pos[1]][pos[2]] = {pos[4][1],pos[4][2]}
       pos[3] = expansed[1][3] + d(pos,expansed[1])
-      print("("..pos[1]..", "..pos[2]..") "," d: "..pos[3],"of "..opt.depth,"("..pos[4][1]..", "..pos[4][2]..") "," search: "..count, "hot: ", #expansed, "rim: ", #rim, "speed: "..math.ceil((((rimcount-lastrim)/#rim)/(os.clock()-running))*1000))
+      toelapse = (0.5)*(#rim/opt.depth)*((opt.depth-pos[3])*(opt.depth-pos[3]))+(#rim*(opt.depth-pos[3]))
+      print("("..pos[1]..", "..pos[2]..") ", "("..pos[4][1]..", "..pos[4][2]..") ", " d: "..pos[3], " search: "..count, "hot: ", #expansed, "rim: ", #rim, "past time: "..os.clock, "remaining time: ~"..(toelapse*((os.clock()-running)/(rimcount-lastrim))).."s")
       lastrim = rimcount
       running = os.clock()
       table.insert(rim,pos)
@@ -473,7 +475,7 @@ local function astar(max,pos,img,depthmap,graph,color)
       depthmap[1][pos[1]][pos[2]] = pos[3]
       color[1][pos[1]][pos[2]] = pos[4][1]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
       color[2][pos[1]][pos[2]] = pos[4][2]%150+(150-(pos[4][1]%150+pos[4][2]%150))/2+(pos[4][3]/max*100)-(pos[3]/max*100)
-      color[3][pos[1]][pos[2]] = math.abs(pos[4][2]%150-pos[4][1]%150)+(pos[4][3]/max*100)-(pos[3]/max*100)
+      color[3][pos[1]][pos[2]] = math.abs(pos[4][2]%77-pos[4][1]%77)*2+(pos[4][3]/max*100)-(pos[3]/max*100)
     end
     
     --depthmap[1][pos[1]][pos[2]] = pos[3]
