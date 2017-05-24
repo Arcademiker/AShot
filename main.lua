@@ -1,3 +1,5 @@
+----description
+--astar with true distance calculation
 require 'torch'
 local image = require 'image'
 
